@@ -6,12 +6,40 @@ class QueryEngine:
         function_graph,
         knowledge_graph,
         metrics=None,
+        dependency_path_engine=None,
+        function_path_engine=None,
+        knowledge_path_engine=None,
+        impact_engine=None,
+        coupling_engine=None,
+        risk_engine=None,
+        execution_engine=None,
     ):
         self.repository = repository
         self.dependency_graph = dependency_graph
         self.function_graph = function_graph
         self.knowledge_graph = knowledge_graph
         self.metrics = metrics or {}
+        self.dependency_path_engine = (
+            dependency_path_engine
+        )
+        self.function_path_engine = (
+            function_path_engine
+        )
+        self.knowledge_path_engine = (
+            knowledge_path_engine
+        )
+        self.impact_engine = (
+            impact_engine
+        )
+        self.coupling_engine = (
+            coupling_engine
+        )
+        self.risk_engine = (
+            risk_engine
+        )
+        self.execution_engine = (
+            execution_engine
+        )
         self._function_graph_stats = {
             "nodes": self.function_graph.number_of_nodes(),
             "edges": self.function_graph.number_of_edges(),
@@ -448,13 +476,27 @@ class QueryEngine:
     def supported_commands(self):
         return [
             "show dependencies for <file>",
+            "show dependencies of <file>",
+            "show dependency chain of <file>",
             "show dependents for <file>",
+            "show dependents of <file>",
+            "what depends on <file>",
+            "what does <file> depend on",
+            "show dependency chain of <file>",
             "show callers of <function>",
             "show callees of <function>",
             "where is function <function>",
+            "find path from <file> to <file>",
+            "show impact of <file>",
+            "show impacted by <file>",
+            "blast radius of <file>",
+            "criticality of <file>",
+            "show ancestors of <file>",
+            "show descendants of <file>",
             "explain file <file>",
             "explain function <function>",
             "trace execution of <function>",
+            "find execution path from <function> to <function>",
             "show dead files",
             "show entry points",
             "show hotspots",
@@ -462,12 +504,224 @@ class QueryEngine:
             "show important files",
             "what are the most important files",
             "why is <file> important",
+            "show coupling of <file>",
+            "show instability of <file>",
+            "most coupled modules",
+            "repository coupling summary",
+            "show risk of <file>",
+            "show risky modules",
+            "highest risk modules",
+            "most risky modules",
+            "top risky modules",
+            "repository risk summary",
         ]
+
+    def explain_path(
+        self,
+        source,
+        target,
+    ):
+        if self.dependency_path_engine is None:
+            return {
+                "error": "Dependency path engine not available"
+            }
+
+        resolved_source = self.resolve_file(source)
+        if isinstance(resolved_source, dict):
+            return resolved_source
+
+        resolved_target = self.resolve_file(target)
+        if isinstance(resolved_target, dict):
+            return resolved_target
+
+        if resolved_source is None:
+            return {
+                "error": f"Could not resolve '{source}'"
+            }
+
+        if resolved_target is None:
+            return {
+                "error": f"Could not resolve '{target}'"
+            }
+
+        return self.dependency_path_engine.find_path(
+            resolved_source,
+            resolved_target,
+        )
+
+    def impact_analysis(
+        self,
+        node,
+    ):
+        if self.dependency_path_engine is None:
+            return {
+                "error": "Dependency path engine not available"
+            }
+
+        target = self.resolve_file(node)
+
+        if isinstance(target, dict):
+            return target
+
+        if target is None:
+            return {
+                "error": f"Could not resolve '{node}'"
+            }
+
+        return (
+            self.dependency_path_engine.impact_analysis(
+                target
+            )
+        )
+
+    def show_ancestors(
+        self,
+        node,
+    ):
+        if self.dependency_path_engine is None:
+            return []
+
+        target = self.resolve_file(node)
+
+        if isinstance(target, dict):
+            return target
+
+        if target is None:
+            return {
+                "error": f"Could not resolve '{node}'"
+            }
+
+        return (
+            self.dependency_path_engine.get_ancestors(
+                target
+            )
+        )
+
+    def show_descendants(
+        self,
+        node,
+    ):
+        if self.dependency_path_engine is None:
+            return []
+
+        target = self.resolve_file(node)
+
+        if isinstance(target, dict):
+            return target
+
+        if target is None:
+            return {
+                "error": f"Could not resolve '{node}'"
+            }
+
+        return (
+            self.dependency_path_engine.get_descendants(
+                target
+            )
+        )
+    
+    def coupling_analysis(
+        self,
+        node,
+    ):
+        if self.coupling_engine is None:
+            return {
+                "error": "Coupling engine not available"
+            }
+        target = self.resolve_file(node)
+        
+        if isinstance(target, dict):
+            return target
+        if target is None:
+            return {
+                "error": f"Could not resolve '{node}'"
+            }
+        return self.coupling_engine.coupling_report(
+            target
+        )
+
+    def instability_analysis(
+        self,
+        node,
+    ):
+        if self.coupling_engine is None:
+            return {
+                "error": "Coupling engine not available"
+                }
+        target = self.resolve_file(node)
+        if isinstance(target, dict):
+            return target
+        if target is None:
+            return {
+                "error": f"Could not resolve '{node}'"
+            }
+        return {
+            "node": target,
+            "instability": self.coupling_engine.instability(target),
+        }
+
+    def risk_analysis(
+        self,
+        node,
+    ):
+        if self.risk_engine is None:
+            return {
+                "error": "Risk engine not available"
+            }
+
+        target = self.resolve_file(node)
+
+        if isinstance(target, dict):
+            return target
+
+        if target is None:
+            return {
+                "error": f"Could not resolve '{node}'"
+            }
+
+        return self.risk_engine.risk_report(
+            target
+        )
+
+    def normalize_aliases(
+        self,
+        text,
+    ):
+        query = text.strip().lower()
+        aliases = {
+            "show dependencies of ": "show dependencies for ",
+            "show dependency chain of ": "show dependencies for ",
+            "show dependents of ": "show dependents for ",
+            "show impacted by ": "show impact of ",
+            "what depends on ": "show dependents for ",
+            "show instability for ": "show instability of ",
+            "show coupling for ":"show coupling of ",
+            "show risk for ": "show risk of ",
+            "highest risk modules": "show risky modules",
+            "most risky modules": "show risky modules",
+            "top risky modules": "show risky modules",
+        }
+        for alias, canonical in aliases.items():
+            if query.startswith(alias):
+                return canonical + text[len(alias):]
+            if (
+                query.startswith("what does ") 
+                and query.endswith(" depend on")
+            ):
+                target = text[
+                    len("what does "):
+                    -len(" depend on")
+                ].strip()
+                return (
+                    f"show dependencies for {target}"
+                )
+        return text
 
     def query(
         self,
         text,
     ):
+        text = self.normalize_aliases(text)
         query = text.lower().strip()
         if query == "help":
             return self.supported_commands()
@@ -518,22 +772,146 @@ class QueryEngine:
             return self.find_dependents(target)
 
         if query.startswith("show callers of "):
-            target = text[
-                len("show callers of "):
-            ].strip()
-            resolved = self.resolve_function(target)
-            if isinstance(resolved, dict):
-                return resolved
+            target = text[len("show callers of "):].strip()
+
+            if self.execution_engine is not None:
+                resolved = self.resolve_function(target)
+                if isinstance(resolved, dict):
+                    return resolved
+                if resolved is None:
+                    return {
+                        "error": f"Could not resolve '{target}'"
+                    }
+                return self.execution_engine.callers_of(resolved)
+
             return self.find_callers(target)
 
         if query.startswith("show callees of "):
-            target = text[
-                len("show callees of "):
-            ].strip()
-            resolved = self.resolve_function(target)
+            target = text[len("show callees of "):].strip()
+
+            if self.execution_engine is not None:
+                resolved = self.resolve_function(target)
+                if isinstance(resolved, dict):
+                    return resolved
+                if resolved is None:
+                    return {
+                        "error": f"Could not resolve '{target}'"
+                    }
+                return self.execution_engine.callees_of(resolved)
+
+            return self.find_callees(target)
+
+        if query.startswith("find path from "):
+            remainder = text[len("find path from "):]
+
+            if " to " not in remainder:
+                return {
+                    "error": "Use: find path from <file> to <file>"
+                }
+
+            source, target = remainder.split(
+                " to ",
+                1,
+            )
+
+            return self.explain_path(
+                source.strip(),
+                target.strip(),
+            )
+
+        if query.startswith("show impact of "):
+            target = text[len("show impact of "):].strip()
+            return self.impact_analysis(target)
+        
+        if query.startswith("blast radius of "):
+            target = text[len("blast radius of "):].strip()
+            resolved = self.resolve_file(target)
             if isinstance(resolved, dict):
                 return resolved
-            return self.find_callees(target)
+            if resolved is None:
+                return {
+                    "error": f"Could not resolve '{target}'"
+                }
+            if self.impact_engine is None:
+                return {
+                    "error": "Impact engine not available"
+                }
+            return self.impact_engine.get_change_blast_radius(
+                resolved
+            )
+
+        if query.startswith("criticality of "):
+            target = text[len("criticality of "):].strip()
+            resolved = self.resolve_file(target)
+            if isinstance(resolved, dict):
+                return resolved
+            if resolved is None:
+                return {
+                    "error": f"Could not resolve '{target}'"
+                }
+            if self.impact_engine is None:
+                return {
+                    "error": "Impact engine not available"
+                }
+            return {
+                "node": resolved,
+                "criticality": self.impact_engine.get_criticality(
+                    resolved
+                ),
+            }
+        
+        if query.startswith("show coupling of "):
+            target = text[len("show coupling of "):].strip()
+            return self.coupling_analysis(target)
+
+        if query.startswith("show instability of "):
+            target = text[len("show instability of "):].strip()
+            return self.instability_analysis(target)
+
+        if query == "most coupled modules":
+            if self.coupling_engine is None:
+                return {
+                    "error": "Coupling engine not available"
+                }
+            return self.coupling_engine.central_modules()
+
+        if query == "repository coupling summary":
+            if self.coupling_engine is None:
+                return {
+                    "error": "Coupling engine not available"
+                }
+            return self.coupling_engine.repository_summary()
+
+        if query.startswith("show risk of "):
+            target = text[len("show risk of "):].strip()
+            return self.risk_analysis(target)
+
+        if query in {
+            "show risky modules",
+            "highest risk modules",
+            "most risky modules",
+            "top risky modules",
+        }:
+            if self.risk_engine is None:
+                return {
+                    "error": "Risk engine not available"
+                }
+            return self.risk_engine.high_risk_modules()
+
+        if query == "repository risk summary":
+            if self.risk_engine is None:
+                return {
+                    "error": "Risk engine not available"
+                }
+            return self.risk_engine.repository_summary()
+
+        if query.startswith("show ancestors of "):
+            target = text[len("show ancestors of "):].strip()
+            return self.show_ancestors(target)
+
+        if query.startswith("show descendants of "):
+            target = text[len("show descendants of "):].strip()
+            return self.show_descendants(target)
 
         if query.startswith("where is function "):
             target = text[
@@ -558,21 +936,90 @@ class QueryEngine:
 
         if query.startswith("trace execution of "):
             target = text[len("trace execution of "):].strip()
+
+            if self.execution_engine is not None:
+                resolved = self.resolve_function(target)
+                if isinstance(resolved, dict):
+                    return resolved
+                if resolved is None:
+                    return {
+                        "error": f"Could not resolve '{target}'"
+                    }
+                return self.execution_engine.execution_trace(
+                    resolved
+                )
+
             return self.trace_execution(target)
+
+        if query.startswith("find execution path from "):
+            if self.execution_engine is None:
+                return {
+                    "error": "Execution engine not available"
+                }
+
+            remainder = text[len("find execution path from "):]
+
+            if " to " not in remainder:
+                return {
+                    "error": (
+                        "Use: find execution path from <function> to <function>"
+                    )
+                }
+
+            source, target = remainder.split(
+                " to ",
+                1,
+            )
+
+            source = self.resolve_function(
+                source.strip()
+            )
+            target = self.resolve_function(
+                target.strip()
+            )
+
+            if isinstance(source, dict):
+                return source
+            if isinstance(target, dict):
+                return target
+            if source is None or target is None:
+                return {
+                    "error": "Could not resolve one or both functions"
+                }
+
+            return self.execution_engine.execution_path(
+                source,
+                target,
+            )
 
         return {
             "error": (
                 "Unknown query. Supported commands: "
                 "show dependencies for <file>, "
                 "show dependents for <file>, "
+                "show dependencies of <file>, "
+                "show dependents of <file>, "
+                "what depends on <file>, "
+                "what does <file> depend on, "
+                "show dependency chain of <file>,"
+                "show dependents for <file>,"
                 "show callers of <function>, "
                 "show callees of <function>, "
                 "where is function <function>, "
+                "find path from <file> to <file>, "
+                "show impact of <file>, "
+                "show impacted by <file>,"
+                "blast radius of <file>, "
+                "criticality of <file>, "
+                "show ancestors of <file>, "
+                "show descendants of <file>, "
                 "explain file <file>, "
                 "explain function <function>, "
                 "trace execution of <function>, "
+                "find execution path from <function> to <function>, "
                 "show dead files, show entry points, show hotspots, "
                 "show central files, show important files, "
-                "what are the most important files, why is <file> important"
+                "what are the most important files, why is <file> important, "
+                "show risk of <file>, show risky modules, highest risk modules, most risky modules, top risky modules, repository risk summary, high risk modules"
             )
         }
